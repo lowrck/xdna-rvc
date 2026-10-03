@@ -1,0 +1,35 @@
+# Build output
+/build*/
+/out/
+/cmake-build-*/
+compile_commands.json
+
+# Python
+/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Runtime artifacts
+/logs/
+/diagnostics/
+/cache/
+/test_assets/
+
+# Never commit voice models or converted assets
+/models/*
+!/models/.gitkeep
+*.pth
+*.pt
+*.index
+*.onnx
+*.onnx.data
+!tests/data/*.onnx
+
+# Editors / OS
+.vs/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
