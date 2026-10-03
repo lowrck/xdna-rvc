@@ -8,7 +8,7 @@ namespace xr::rvc {
 struct VoiceParamsSnapshot {
     float pitch_shift = 0.0f;        // semitones
     float index_rate = 0.5f;         // 0 = no retrieval, 1 = retrieved features only
-    float rms_mix_rate = 1.0f;       // 1 = keep model loudness, 0 = follow input loudness
+    float rms_mix_rate = 0.25f;      // 1 = keep model loudness, 0 = follow input loudness
     float protect = 0.33f;           // < 0.5 protects unvoiced consonants (F0 models only)
     int speaker_id = 0;
     int filter_radius = 0;           // median filter on F0 (frames, odd >= 3 enables)
@@ -54,7 +54,7 @@ public:
 
     std::atomic<float> pitch_shift{0.0f};
     std::atomic<float> index_rate{0.5f};
-    std::atomic<float> rms_mix_rate{1.0f};
+    std::atomic<float> rms_mix_rate{0.25f};
     std::atomic<float> protect{0.33f};
     std::atomic<int> speaker_id{0};
     std::atomic<int> filter_radius{0};

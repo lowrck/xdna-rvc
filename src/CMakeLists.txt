@@ -56,3 +56,19 @@ add_executable(xdna-rvc-cli
 )
 target_link_libraries(xdna-rvc-cli PRIVATE xdna_rvc_core CLI11::CLI11)
 xdna_rvc_copy_ort_runtime(xdna-rvc-cli)
+
+# Desktop GUI.
+if(XDNA_RVC_BUILD_GUI)
+    add_executable(xdna-rvc WIN32
+        app/gui_main.cpp
+        ui/gui_app.cpp
+        ui/gui_panels.cpp
+        ui/process.cpp
+    )
+    target_link_libraries(xdna-rvc PRIVATE xdna_rvc_core xdna_rvc_imgui)
+    if(MSVC)
+        # WIN32 subsystem but keep a standard main().
+        target_link_options(xdna-rvc PRIVATE /ENTRY:mainCRTStartup)
+    endif()
+    xdna_rvc_copy_ort_runtime(xdna-rvc)
+endif()
