@@ -1,0 +1,37 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {"major": 3, "minor": 24, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "windows-ryzenai",
+      "displayName": "Windows, AMD Ryzen AI (XDNA 2 + DirectML + CPU)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {"XDNA_RVC_ORT_FLAVOR": "ryzenai"},
+      "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows"}
+    },
+    {
+      "name": "windows-directml",
+      "displayName": "Windows, DirectML + CPU (no NPU)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build-dml",
+      "cacheVariables": {"XDNA_RVC_ORT_FLAVOR": "directml"},
+      "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows"}
+    },
+    {
+      "name": "linux-cpu",
+      "displayName": "Linux, CPU (development)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {"CMAKE_BUILD_TYPE": "Release", "XDNA_RVC_ORT_FLAVOR": "cpu"},
+      "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}
+    }
+  ],
+  "buildPresets": [
+    {"name": "windows-ryzenai", "configurePreset": "windows-ryzenai", "configuration": "Release"},
+    {"name": "windows-directml", "configurePreset": "windows-directml", "configuration": "Release"},
+    {"name": "linux-cpu", "configurePreset": "linux-cpu"}
+  ]
+}

@@ -1,6 +1,7 @@
 #include "inference/npu_detect.h"
 
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
