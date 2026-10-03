@@ -153,5 +153,6 @@ between backends.
 
 ## License
 
-Project code: see repository license. Third-party components:
+No license has been chosen for the project code yet (add a LICENSE file before distributing).
+Third-party components:
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). Model weights are not distributed.
