@@ -19,7 +19,10 @@ public:
     // `global_threads` > 0 creates one process-wide intra-op thread pool shared by every
     // session (sessions then call DisablePerSessionThreads()). Pipeline stages run one
     // after another, so per-session pools would only compete for cores.
-    explicit OrtRuntime(OrtLoggingLevel level = ORT_LOGGING_LEVEL_WARNING, int global_threads = 0);
+    // `raise_pool_priority`: create the pool threads at high priority (realtime use), so
+    // inference is not starved by other applications.
+    explicit OrtRuntime(OrtLoggingLevel level = ORT_LOGGING_LEVEL_WARNING, int global_threads = 0,
+                        bool raise_pool_priority = false);
     int global_threads() const { return global_threads_; }
 
     Ort::Env& env() { return env_; }
@@ -31,7 +34,7 @@ public:
     const NpuInfo& npu() const { return npu_; }
 
 private:
-    static Ort::Env make_env(OrtLoggingLevel level, int global_threads);
+    static Ort::Env make_env(OrtLoggingLevel level, int global_threads, bool raise_pool_priority);
     int global_threads_ = 0;
     Ort::Env env_;
     std::string version_;

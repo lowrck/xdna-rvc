@@ -20,6 +20,7 @@ void PipelineArgs::add_to(CLI::App& cmd, bool model_positional) {
     cmd.add_option("--block-ms", block_ms, "Hop size (overrides preset)");
     cmd.add_option("--crossfade-ms", crossfade_ms, "Crossfade length (overrides preset)");
     cmd.add_option("--extra-ms", extra_ms, "Left context (overrides preset)");
+    cmd.add_option("--lookahead-ms", lookahead_ms, "Right context beyond the decoded region (overrides preset)");
     cmd.add_option("--cache-dir", cache_dir, "Compiled-model / static-shape cache directory")->capture_default_str();
     cmd.add_option("--diagnostics-dir", diagnostics_dir, "ORT profiles and reports")->capture_default_str();
     cmd.add_option("--seed", seed, "Noise seed (0 = random) for reproducible output");
@@ -42,6 +43,7 @@ rvc::StreamConfig PipelineArgs::stream() const {
     if (block_ms) s.block_ms = block_ms;
     if (crossfade_ms) s.crossfade_ms = crossfade_ms;
     if (extra_ms) s.extra_ms = extra_ms;
+    if (lookahead_ms >= 0) s.lookahead_ms = lookahead_ms;
     s.validate();
     return s;
 }

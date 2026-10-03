@@ -167,7 +167,7 @@ def main() -> int:
 
     configs: list[StreamConfig] = [PRESETS[x] for x in (a.preset or [])] + [parse_stream(s) for s in a.stream]
     if not configs:
-        configs = [StreamConfig(**g["stream"]) for g in model["generators"]]
+        configs = [StreamConfig(**{"lookahead_ms": 0, **g["stream"]}) for g in model["generators"]]
     stages = set(a.stages.split(","))
     xdna_dir = model_dir / "xdna"
     shared_xdna = (model_dir / model["content_encoder"]["path"]).parent / "xdna"

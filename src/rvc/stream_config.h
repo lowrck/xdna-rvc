@@ -10,6 +10,7 @@ struct StreamConfig {
     int block_ms = 100;     // hop: new audio per inference
     int crossfade_ms = 40;  // SOLA crossfade (buffer capped at 40 ms)
     int extra_ms = 600;     // left context given to the neural models
+    int lookahead_ms = 0;   // right context (future audio) beyond the decoded region
 
     // Throws std::invalid_argument with a precise message.
     void validate() const;
@@ -28,12 +29,13 @@ struct StreamGeometry {
     int sola_buffer = 0;    // Cb = min(C, 4)
     int sola_search = kSolaSearchFrames;  // S
     int extra = 0;          // E
-    int frames = 0;         // T = E + C + S + H (window)
+    int lookahead = 0;      // L
+    int frames = 0;         // T = E + C + S + H + L (window)
     int skip_head = 0;      // E
     int return_length = 0;  // H + Cb + S
 
-    // Delay from input to output caused by right context (C + S frames), in frames.
-    int lookahead_frames() const { return crossfade + sola_search; }
+    // Delay from input to output caused by right context (C + S + L frames), in frames.
+    int lookahead_frames() const { return crossfade + sola_search + lookahead; }
     std::string tag() const;  // "T75_s60_r15", matches the Python export file names
 };
 

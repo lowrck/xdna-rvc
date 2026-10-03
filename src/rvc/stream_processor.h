@@ -3,7 +3,11 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <atomic>
+#include <exception>
 #include <random>
+#include <semaphore>
+#include <thread>
 #include <span>
 #include <vector>
 
@@ -44,6 +48,9 @@ struct ProcessorOptions {
     StageBackends backends;
     dsp::ResamplerQuality resampler_quality = dsp::ResamplerQuality::Balanced;
     uint64_t seed = 0;  // 0 = random
+    // Run RMVPE on a helper thread concurrently with the content encoder (they are
+    // independent). Most useful when they run on different devices (e.g. NPU + CPU).
+    bool parallel_pitch = true;
 };
 
 // Per-hop timing breakdown, milliseconds.
@@ -67,6 +74,7 @@ struct HopTimings {
 class StreamProcessor final : public HopProcessor {
 public:
     StreamProcessor(OrtRuntime& runtime, const ModelInfo& model, const ProcessorOptions& options);
+    ~StreamProcessor() override;
 
     const ModelInfo& model() const { return model_; }
     const StreamGeometry& geometry() const { return geom_; }
@@ -124,6 +132,14 @@ private:
     std::vector<float> out_scratch_;    // output resampler scratch
     std::vector<float> fifo_;           // output FIFO (device rate)
     size_t fifo_read_ = 0, fifo_size_ = 0;
+    // Pitch helper thread (parallel_pitch).
+    void pitch_helper_main();
+    std::thread pitch_thread_;
+    std::binary_semaphore pitch_go_{0};
+    std::binary_semaphore pitch_done_{0};
+    std::atomic<bool> pitch_quit_{false};
+    VoiceParamsSnapshot pitch_params_;
+    std::exception_ptr pitch_error_;
     std::mt19937 rng_;
     std::normal_distribution<float> normal_{0.0f, 1.0f};
 };

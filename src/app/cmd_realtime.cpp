@@ -66,7 +66,7 @@ void print_status(const audio::EngineSnapshot& s) {
 }
 
 int run_realtime(const GlobalOptions& global, const RealtimeArgs& a) {
-    CliContext ctx(global);
+    CliContext ctx(global, /*realtime=*/true);
     const auto model = rvc::load_model_info(a.pipe.model);
     XR_LOG_INFO("model: {}", model.describe());
 
@@ -113,17 +113,20 @@ int run_realtime(const GlobalOptions& global, const RealtimeArgs& a) {
     std::signal(SIGINT, on_sigint);
     engine->start();
     const auto snap0 = engine->snapshot();
-    std::printf("\nRunning: %s\nworker priority: %s. Ctrl+C to stop.\n\n", snap0.device_description.c_str(),
-                snap0.worker_priority.c_str());
+    std::printf("\nRunning: %s. Ctrl+C to stop.\n\n", snap0.device_description.c_str());
 
     if (!a.simulate.empty()) {
         const double secs = a.duration > 0 ? a.duration : static_cast<double>(sim_input.size()) / 48000.0 + 1.0;
         audio::SimulatedDuplex sim(*engine, sim_input, {48000, 48000, 10, 0.0, true});
-        std::thread t([&] { sim.run(secs); });
-        while (!g_interrupted) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            print_status(engine->snapshot());
-            if (engine->snapshot().hops * engine->snapshot().hop_ms >= secs * 1000 - 2 * engine->snapshot().hop_ms) break;
+        std::atomic<bool> done{false};
+        std::thread t([&] {
+            sim.run(secs);
+            done = true;
+        });
+        while (!g_interrupted && !done) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            static int ticks = 0;
+            if (++ticks % 4 == 0) print_status(engine->snapshot());
         }
         t.join();
         engine->stop();
@@ -148,6 +151,12 @@ int run_realtime(const GlobalOptions& global, const RealtimeArgs& a) {
                 s.total.p95, s.total.max, s.hop_ms);
     std::printf("  measured latency:   median %.1f ms, p95 %.1f ms (devices %.1f + %.1f ms, algorithmic %.1f ms)\n",
                 s.latency_ms.median, s.latency_ms.p95, s.input_device_ms, s.output_device_ms, s.algorithmic_ms);
+    if (s.total.p95 > 0.9 * s.hop_ms) {
+        std::printf("  WARNING: p95 processing time is within 10%% of the hop; expect underruns. Use a larger hop "
+                    "(--preset balanced/quality) or a faster backend.\n");
+    }
+    std::printf("  worker priority: %s\n", s.worker_priority.c_str());
+    std::printf("  latency trims during silence %llu\n", static_cast<unsigned long long>(s.latency_trims));
     std::printf("  underruns %llu (%llu samples), input overruns %llu samples, worker late %llu, errors %llu, drift "
                 "corrections %llu\n",
                 static_cast<unsigned long long>(s.underrun_events), static_cast<unsigned long long>(s.underrun_samples),

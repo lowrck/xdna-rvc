@@ -49,6 +49,7 @@ struct EngineCounters {
     std::atomic<uint64_t> worker_late_events{0}; // worker fell behind, old input dropped
     std::atomic<uint64_t> inference_errors{0};
     std::atomic<uint64_t> drift_corrections{0};
+    std::atomic<uint64_t> latency_trims{0};      // excess buffering dropped during silence
 };
 
 // Snapshot for UIs, published by the worker.
@@ -64,7 +65,7 @@ struct EngineSnapshot {
     double input_ring_ms = 0, output_ring_ms = 0;
     double input_device_ms = 0, output_device_ms = 0, algorithmic_ms = 0;
     uint64_t hops = 0, underrun_events = 0, underrun_samples = 0, overrun_samples = 0, worker_late_events = 0,
-             inference_errors = 0, drift_corrections = 0;
+             inference_errors = 0, drift_corrections = 0, latency_trims = 0;
     std::string last_error;
     std::vector<float> total_history;    // per-hop processing time, ms
     std::vector<float> latency_history;  // per-hop measured latency, ms

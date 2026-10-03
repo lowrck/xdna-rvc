@@ -17,11 +17,16 @@ void StreamConfig::validate() const {
     check("block_ms", block_ms);
     check("crossfade_ms", crossfade_ms);
     check("extra_ms", extra_ms);
+    check("lookahead_ms", lookahead_ms);
     if (block_ms < 2 * kFrameMs) throw std::invalid_argument("block_ms must be at least 20 ms");
     if (crossfade_ms < kFrameMs) throw std::invalid_argument("crossfade_ms must be at least 10 ms");
 }
 
 std::string StreamConfig::to_string() const {
+    if (lookahead_ms > 0) {
+        return fmt::format("block {} ms, crossfade {} ms, extra {} ms, lookahead {} ms", block_ms, crossfade_ms,
+                           extra_ms, lookahead_ms);
+    }
     return fmt::format("block {} ms, crossfade {} ms, extra {} ms", block_ms, crossfade_ms, extra_ms);
 }
 
@@ -34,16 +39,18 @@ StreamGeometry make_geometry(const StreamConfig& cfg) {
     g.crossfade = cfg.crossfade_ms / kFrameMs;
     g.sola_buffer = std::min(g.crossfade, kSolaBufferMaxFrames);
     g.extra = cfg.extra_ms / kFrameMs;
-    g.frames = g.extra + g.crossfade + g.sola_search + g.block;
+    g.lookahead = cfg.lookahead_ms / kFrameMs;
+    g.frames = g.extra + g.crossfade + g.sola_search + g.block + g.lookahead;
     g.skip_head = g.extra;
     g.return_length = g.block + g.sola_buffer + g.sola_search;
     return g;
 }
 
 StreamConfig preset(const std::string& name) {
-    if (name == "low_latency") return {60, 30, 400};
-    if (name == "balanced") return {100, 40, 600};
-    if (name == "quality") return {200, 60, 1000};
+    // Keep in sync with tools/xdna_rvc_tools/stream_config.py (chosen from measurements, docs/latency.md).
+    if (name == "low_latency") return {40, 20, 300, 60};
+    if (name == "balanced") return {60, 20, 300, 60};
+    if (name == "quality") return {100, 40, 600, 0};
     throw std::invalid_argument("unknown stream preset '" + name + "' (low_latency|balanced|quality)");
 }
 

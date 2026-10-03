@@ -5,11 +5,13 @@
 #include <cmath>
 #include <cstring>
 #include <functional>
+#include <utility>
 
 #include <spdlog/fmt/fmt.h>
 
 #include "inference/ort_runtime.h"
 #include "util/error.h"
+#include "util/thread_priority.h"
 #include "util/log.h"
 
 namespace xr::rvc {
@@ -70,9 +72,9 @@ StreamProcessor::StreamProcessor(OrtRuntime& runtime, const ModelInfo& model, co
         }
         throw UserError(fmt::format("voice '{}' has no generator exported for {} ({}). Available:{}", model_.name,
                                     opts_.stream.to_string(), geom_.tag(), have),
-                        fmt::format("Export it with: python tools/convert_rvc.py <voice.pth> --name {} --stream {},{},{}",
+                        fmt::format("Export it with: python tools/convert_rvc.py <voice.pth> --name {} --stream {},{},{},{}",
                                     model_.name, opts_.stream.block_ms, opts_.stream.crossfade_ms,
-                                    opts_.stream.extra_ms));
+                                    opts_.stream.extra_ms, opts_.stream.lookahead_ms));
     }
     if (!variant->validated) {
         XR_LOG_WARN("generator {} did not pass all conversion checks; output may be wrong",
@@ -192,15 +194,38 @@ StreamProcessor::StreamProcessor(OrtRuntime& runtime, const ModelInfo& model, co
     out_scratch_.resize(out_resampler_.max_output(block_.size()));
     fifo_.assign(static_cast<size_t>(hop_out_) * 4 + out_scratch_.size() + 64, 0.0f);
     reset();
+    if (rmvpe_ && opts_.parallel_pitch) pitch_thread_ = std::thread([this] { pitch_helper_main(); });
 
     XR_LOG_INFO("stream processor: {} | geometry {} | hop {} in / {} out samples | algorithmic latency {:.1f} ms",
                 opts_.stream.to_string(), geom_.tag(), hop_in_, hop_out_, algorithmic_latency_seconds() * 1000.0);
 }
 
+StreamProcessor::~StreamProcessor() {
+    if (pitch_thread_.joinable()) {
+        pitch_quit_ = true;
+        pitch_go_.release();
+        pitch_thread_.join();
+    }
+}
+
+void StreamProcessor::pitch_helper_main() {
+    set_current_thread_priority(ThreadPriority::High);
+    for (;;) {
+        pitch_go_.acquire();
+        if (pitch_quit_) return;
+        try {
+            run_pitch(pitch_params_);
+        } catch (...) {
+            pitch_error_ = std::current_exception();
+        }
+        pitch_done_.release();
+    }
+}
+
 double StreamProcessor::algorithmic_latency_seconds() const {
     // Emitted audio corresponds to window frames ending (C + S) frames before the newest
     // input; SOLA picks an offset in [0, S] (counted at its mean, S/2).
-    const double frames = geom_.crossfade + geom_.sola_search - 0.5 * geom_.sola_search;
+    const double frames = geom_.crossfade + geom_.sola_search + geom_.lookahead - 0.5 * geom_.sola_search;
     return frames * 0.01 + in_resampler_.latency_seconds() + out_resampler_.latency_seconds();
 }
 
@@ -338,7 +363,12 @@ void StreamProcessor::process(std::span<const float> in, std::span<float> out, c
     std::memcpy(window_.data() + (window_.size() - n16), resampled_in_.data(), n16 * sizeof(float));
     const auto t1 = Clock::now();
 
-    // 3. Content features for the whole window, plus a repeated last frame (upstream rtrvc).
+    // 3./4. Pitch (helper thread, if enabled) concurrently with the content features.
+    const bool parallel = pitch_thread_.joinable();
+    if (parallel) {
+        pitch_params_ = p;
+        pitch_go_.release();
+    }
     std::memcpy(content_->fixed_input().data(), window_.data(), window_.size() * sizeof(float));
     const auto fv = content_->run_fixed();
     const int hf = content_->fixed_frames();
@@ -350,9 +380,13 @@ void StreamProcessor::process(std::span<const float> in, std::span<float> out, c
     if (protect) std::memcpy(feats_pre_.data(), feats_.data(), feats_.size() * sizeof(float));
     const auto t2 = Clock::now();
 
-    // 4. Pitch.
-    if (rmvpe_) run_pitch(p);
-    const auto t3 = Clock::now();
+    if (parallel) {
+        pitch_done_.acquire();
+        if (pitch_error_) std::rethrow_exception(std::exchange(pitch_error_, nullptr));
+    } else if (rmvpe_) {
+        run_pitch(p);
+    }
+    const auto t3 = Clock::now();  // with parallel pitch this is only the wait beyond the content encoder
 
     // 5. Index retrieval on the frames that will be decoded (upstream: feats[skip_head // 2:]).
     if (index_ && p.index_rate > 0.0f) {

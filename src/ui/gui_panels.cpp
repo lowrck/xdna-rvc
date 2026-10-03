@@ -17,7 +17,8 @@ namespace {
 const char* kApiNames[] = {"Default", "WASAPI (shared)", "WASAPI (exclusive)", "PulseAudio", "ALSA", "JACK"};
 const char* kBackendNames[] = {"Automatic (XDNA 2 > DirectML > CPU)", "XDNA 2 (NPU)", "DirectML (GPU)", "CPU"};
 const char* kStageBackendNames[] = {"Same as Backend", "XDNA 2 (NPU)", "DirectML (GPU)", "CPU"};
-const char* kPresetNames[] = {"Low latency (60 ms hop)", "Balanced (100 ms hop)", "Quality (200 ms hop)", "Custom"};
+const char* kPresetNames[] = {"Low latency (40 ms hop, 60 ms lookahead)", "Balanced (60 ms hop, 60 ms lookahead)",
+                              "Quality (100 ms hop, 600 ms context)", "Custom"};
 const char* kPriorityNames[] = {"Normal", "High", "Realtime"};
 const char* kUnderrunNames[] = {"Silence", "Bypass (dry input)"};
 
@@ -239,6 +240,9 @@ void GuiApp::draw_stats() {
 
     ImGui::Spacing();
     ImGui::Text("Inference latency: median %.1f ms, p95 %.1f ms (hop %d ms)", s.total.median, s.total.p95, s.hop_ms);
+    if (s.total.count > 20 && s.total.p95 > 0.9 * s.hop_ms) {
+        ImGui::TextColored(kRed, "Processing is too slow for this hop: choose a larger hop (Advanced) or a faster backend.");
+    }
     const ImVec4 lat_col = s.latency_ms.median < 100 ? kGreen : (s.latency_ms.median < 200 ? kAmber : kRed);
     ImGui::TextColored(lat_col, "Total latency (measured): median %.0f ms, p95 %.0f ms", s.latency_ms.median,
                        s.latency_ms.p95);
@@ -289,9 +293,10 @@ void GuiApp::draw_advanced() {
         ImGui::InputInt("Hop / block (ms)", &block_ms_, 10, 20);
         ImGui::InputInt("Crossfade (ms)", &crossfade_ms_, 10, 10);
         ImGui::InputInt("Context / extra (ms)", &extra_ms_, 50, 100);
+        ImGui::InputInt("Lookahead (ms)", &lookahead_ms_, 10, 20);
         ImGui::TextColored(kDim, "Custom windows need a matching generator export:\n"
-                                 "python tools/convert_rvc.py <voice.pth> --stream %d,%d,%d",
-                           block_ms_, crossfade_ms_, extra_ms_);
+                                 "python tools/convert_rvc.py <voice.pth> --stream %d,%d,%d,%d",
+                           block_ms_, crossfade_ms_, extra_ms_, lookahead_ms_);
     }
     const auto g = rvc::make_geometry(stream_config());
     ImGui::TextColored(kDim, "Window %d ms, decode %d ms per hop, right context %d ms", g.frames * 10,

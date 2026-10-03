@@ -152,6 +152,11 @@ def test_stream_presets_and_parsing():
     assert g2.return_length == 10 + 4 + 1  # SOLA buffer capped at 40 ms
     assert parse_stream("balanced") == PRESETS["balanced"]
     assert parse_stream("80,30,400").geometry().frames == 40 + 3 + 1 + 8
+    # Same table as tests/cpp/test_rvc_components.cpp
+    assert PRESETS["low_latency"].geometry().tag() == "T43_s30_r7"
+    assert PRESETS["balanced"].geometry().tag() == "T45_s30_r9"
+    assert PRESETS["quality"].geometry().tag() == "T75_s60_r15"
+    assert parse_stream("40,20,300,60").geometry().frames == 30 + 2 + 1 + 4 + 6
     with pytest.raises(ValueError):
         parse_stream("85,40,600")
 

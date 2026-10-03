@@ -4,7 +4,7 @@
 
 namespace xr::cli {
 
-CliContext::CliContext(const GlobalOptions& global) {
+CliContext::CliContext(const GlobalOptions& global, bool realtime) {
     LogConfig cfg;
     cfg.console_level = parse_log_level(global.log_level);
     cfg.log_dir = global.log_dir;
@@ -18,7 +18,7 @@ CliContext::CliContext(const GlobalOptions& global) {
     XR_LOG_INFO("CPU: {} ({} logical cores)", system_.cpu_brand, system_.logical_cores);
     int threads = global.threads;
     if (threads <= 0) threads = std::clamp(static_cast<int>(system_.logical_cores) / 4, 1, 8);  // ~physical/2
-    runtime_ = std::make_unique<OrtRuntime>(ORT_LOGGING_LEVEL_WARNING, threads);
+    runtime_ = std::make_unique<OrtRuntime>(ORT_LOGGING_LEVEL_WARNING, threads, realtime);
 }
 
 }  // namespace xr::cli

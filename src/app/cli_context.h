@@ -12,7 +12,7 @@ namespace xr::cli {
 // Logging + ONNX Runtime + system facts, created by each subcommand that needs them.
 class CliContext {
 public:
-    explicit CliContext(const GlobalOptions& global);
+    explicit CliContext(const GlobalOptions& global, bool realtime = false);
 
     OrtRuntime& runtime() { return *runtime_; }
     const SystemInfo& system() const { return system_; }

@@ -16,7 +16,7 @@ struct PipelineArgs {
     std::string content_backend, pitch_backend, generator_backend;
     bool no_fallback = false;
     std::string preset = "balanced";
-    int block_ms = 0, crossfade_ms = 0, extra_ms = 0;
+    int block_ms = 0, crossfade_ms = 0, extra_ms = 0, lookahead_ms = -1;
     int threads = 0;
     std::string cache_dir = "cache";
     std::string diagnostics_dir = "diagnostics";

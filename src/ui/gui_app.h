@@ -95,7 +95,7 @@ private:
     bool keep_profiling_ = false;
     bool verbose_ = false;
     int preset_ = 1;  // low_latency, balanced, quality, custom
-    int block_ms_ = 100, crossfade_ms_ = 40, extra_ms_ = 600;
+    int block_ms_ = 60, crossfade_ms_ = 20, extra_ms_ = 300, lookahead_ms_ = 60;
 
     // voice
     rvc::VoiceParamsSnapshot params_;

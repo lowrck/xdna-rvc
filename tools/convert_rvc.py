@@ -101,7 +101,8 @@ def export_generator(info, sd, upstream, cfg: StreamConfig, out_dir: Path, expor
                                         ["audio"])
     entry = {
         "path": name,
-        "stream": {"block_ms": cfg.block_ms, "crossfade_ms": cfg.crossfade_ms, "extra_ms": cfg.extra_ms},
+        "stream": {"block_ms": cfg.block_ms, "crossfade_ms": cfg.crossfade_ms, "extra_ms": cfg.extra_ms,
+                   "lookahead_ms": cfg.lookahead_ms},
         "frames": geom.frames,
         "skip_head": geom.skip_head,
         "return_length": geom.return_length,
@@ -152,7 +153,8 @@ def main() -> int:
     p.add_argument("--models-dir", type=Path, default=Path("models"))
     p.add_argument("--shared-dir", type=Path, help="shared models dir (default: <models-dir>/shared)")
     p.add_argument("--preset", action="append", choices=list(PRESETS), help="streaming preset(s) to export")
-    p.add_argument("--stream", action="append", default=[], help="extra geometry block_ms,crossfade_ms,extra_ms")
+    p.add_argument("--stream", action="append", default=[],
+                   help="extra geometry block_ms,crossfade_ms,extra_ms[,lookahead_ms]")
     p.add_argument("--sample-rate", type=int, choices=[32000, 40000, 48000],
                    help="sample rate for training checkpoints without metadata")
     p.add_argument("--exporter", choices=["torchscript", "dynamo"], default="torchscript")
@@ -242,6 +244,15 @@ def main() -> int:
         "index": index_meta,
         "warnings": info.warnings,
     }
+    # Keep XDNA precompile entries (tools/compile_xdna.py) that still refer to current files.
+    if existing and existing.get("xdna"):
+        gen_paths = {g["path"] for g in generators}
+        kept = [e for e in existing["xdna"].get("entries", [])
+                if e.get("stage") != "generator" or e.get("source") in gen_paths]
+        if existing.get("source", {}).get("sha256") != info.sha256:
+            kept = [e for e in kept if e.get("stage") != "generator"]  # weights changed: recompile generators
+        if kept:
+            model_json["xdna"] = {**existing["xdna"], "entries": kept}
     (model_dir / "model.json").write_text(json.dumps(model_json, indent=2))
     write_report(model_dir / "conversion_report.json", comps, {"checkpoint": info.to_json()})
     ok = all(c.passed for c in comps)

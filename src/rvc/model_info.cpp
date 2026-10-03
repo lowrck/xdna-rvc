@@ -123,7 +123,8 @@ ModelInfo load_model_info(const std::filesystem::path& model_json) {
         v.output_samples = g.value("output_samples", v.return_length * m.upsample_factor);
         v.precision = g.value("precision", "fp32");
         if (const auto s = g.find("stream"); s != g.end()) {
-            v.stream = {s->value("block_ms", 0), s->value("crossfade_ms", 0), s->value("extra_ms", 0)};
+            v.stream = {s->value("block_ms", 0), s->value("crossfade_ms", 0), s->value("extra_ms", 0),
+                        s->value("lookahead_ms", 0)};
         }
         v.validated = true;
         if (const auto val = g.find("validation"); val != g.end() && val->is_object()) {

@@ -54,8 +54,10 @@ TEST_CASE("stream geometry matches the Python table") {
     CHECK(g.tag() == "T75_s60_r15");
     CHECK(make_geometry({100, 80, 500}).return_length == 15);  // SOLA buffer capped at 40 ms
     CHECK(make_geometry({80, 30, 400}).frames == 52);
-    CHECK(make_geometry(preset("low_latency")).tag() == "T50_s40_r10");
-    CHECK(make_geometry(preset("quality")).tag() == "T127_s100_r25");
+    CHECK(make_geometry(preset("low_latency")).tag() == "T43_s30_r7");
+    CHECK(make_geometry(preset("balanced")).tag() == "T45_s30_r9");
+    CHECK(make_geometry(preset("quality")).tag() == "T75_s60_r15");
+    CHECK(make_geometry({40, 20, 300, 60}).lookahead_frames() == 9);
     CHECK(g.lookahead_frames() == 5);
     CHECK_THROWS_AS(make_geometry({85, 40, 600}), std::invalid_argument);
     CHECK_THROWS_AS(make_geometry({10, 40, 600}), std::invalid_argument);

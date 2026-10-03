@@ -171,3 +171,37 @@ TEST_CASE("engine: inference errors produce silence and are counted, not crashes
     CHECK(s.last_error == "simulated NPU timeout");
     for (float v : sim.recorded()) REQUIRE(v == 0.0f);
 }
+
+TEST_CASE("engine: latency added by an underrun is trimmed back during silence") {
+    // Speech for 2 s, then silence. One 150 ms stall during speech causes an underrun,
+    // which permanently queues ~150 ms of extra audio unless the engine trims it.
+    class Stalling final : public rvc::HopProcessor {
+    public:
+        int hop_input_samples() const override { return 960; }
+        int hop_output_samples() const override { return 960; }
+        double hop_seconds() const override { return 0.02; }
+        double algorithmic_latency_seconds() const override { return 0; }
+        void reset() override {}
+        void process(std::span<const float> in, std::span<float> out, const rvc::VoiceParamsSnapshot&,
+                     rvc::HopTimings*) override {
+            if (++n_ == 80) std::this_thread::sleep_for(std::chrono::milliseconds(150));
+            std::copy(in.begin(), in.end(), out.begin());
+        }
+        int n_ = 0;
+    };
+    EngineOptions o;
+    o.safety_ms = 20;
+    o.worker_priority = ThreadPriority::Normal;
+    RealtimeEngine eng([](int, int) { return std::make_unique<Stalling>(); }, 48000, 48000, 0, 0, o);
+    eng.start();
+    auto speech = ramp_signal(48000, 2.0);
+    speech.resize(48000 * 6, 0.0f);  // then 4 s of silence
+    SimulatedDuplex sim(eng, speech, {48000, 48000, 10, 0, true});
+    sim.run(6.0);
+    eng.stop();
+    const auto s = eng.snapshot();
+    CHECK(s.underrun_events >= 1);
+    CHECK(s.latency_trims + s.worker_late_events >= 1);  // recovered by trimming and/or backlog drop
+    // Latency at the end is back near the pre-stall value (hop 20 + safety 20 + ring).
+    CHECK(s.latency_history.back() < s.latency_ms.max - 100.0);
+}

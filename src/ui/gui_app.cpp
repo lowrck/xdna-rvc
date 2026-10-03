@@ -28,7 +28,7 @@ const BackendKind kBackends[] = {BackendKind::Auto, BackendKind::XDNA2, BackendK
 GuiApp::GuiApp(Options options, std::shared_ptr<RingLogSink> log_sink) : opts_(std::move(options)), log_(std::move(log_sink)) {
     sys_ = query_system_info();
     int threads = opts_.threads > 0 ? opts_.threads : std::clamp(static_cast<int>(sys_.logical_cores) / 4, 1, 8);
-    runtime_ = std::make_unique<OrtRuntime>(ORT_LOGGING_LEVEL_WARNING, threads);
+    runtime_ = std::make_unique<OrtRuntime>(ORT_LOGGING_LEVEL_WARNING, threads, /*raise_pool_priority=*/true);
 #if defined(_WIN32)
     const auto venv_python = opts_.project_root / ".venv" / "Scripts" / "python.exe";
 #else
@@ -110,7 +110,7 @@ rvc::StreamConfig GuiApp::stream_config() const {
         case 0: return rvc::preset("low_latency");
         case 1: return rvc::preset("balanced");
         case 2: return rvc::preset("quality");
-        default: return {block_ms_, crossfade_ms_, extra_ms_};
+        default: return {block_ms_, crossfade_ms_, extra_ms_, lookahead_ms_};
     }
 }
 
@@ -275,7 +275,8 @@ void GuiApp::load_settings() {
         preset_ = std::clamp(j.value("preset", 1), 0, 3);
         block_ms_ = j.value("block_ms", 100);
         crossfade_ms_ = j.value("crossfade_ms", 40);
-        extra_ms_ = j.value("extra_ms", 600);
+        extra_ms_ = j.value("extra_ms", 300);
+        lookahead_ms_ = j.value("lookahead_ms", 60);
         period_ms_ = j.value("period_ms", 10);
         safety_ms_ = j.value("safety_ms", -1);
         params_.pitch_shift = j.value("pitch", 0.0f);
@@ -295,7 +296,7 @@ void GuiApp::save_settings() const {
     nlohmann::json j{{"audio_api", audio_api_}, {"backend", backend_all_}, {"backend_content", backend_content_},
                      {"backend_pitch", backend_pitch_}, {"backend_generator", backend_generator_},
                      {"preset", preset_}, {"block_ms", block_ms_}, {"crossfade_ms", crossfade_ms_},
-                     {"extra_ms", extra_ms_}, {"period_ms", period_ms_}, {"safety_ms", safety_ms_},
+                     {"extra_ms", extra_ms_}, {"lookahead_ms", lookahead_ms_}, {"period_ms", period_ms_}, {"safety_ms", safety_ms_},
                      {"pitch", params_.pitch_shift}, {"index_rate", params_.index_rate},
                      {"rms_mix", params_.rms_mix_rate}, {"protect", params_.protect},
                      {"input_gain_db", params_.input_gain_db}, {"output_gain_db", params_.output_gain_db},

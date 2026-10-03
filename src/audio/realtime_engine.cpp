@@ -225,6 +225,22 @@ void RealtimeEngine::worker_main() {
                 if (level_avg_ > drift_target_ + band) delta = -1;
                 else if (level_avg_ < drift_target_ - band) delta = +1;
             }
+            // Latency creep after underruns: the missing samples stay queued. Recover quickly by
+            // dropping part of a *silent* block (inaudible) rather than waiting for the
+            // one-sample drift corrections.
+            const double excess = level_avg_ - (drift_target_ + band);
+            if (hops_seen_ > kDriftLearnHops && excess > static_cast<double>(hop_out) / 4.0) {
+                double energy = 0.0;
+                for (float v : hop_out_) energy += static_cast<double>(v) * v;
+                const double rms_db = 10.0 * std::log10(energy / static_cast<double>(hop_out) + 1e-20);
+                if (rms_db < -55.0) {
+                    const size_t drop = std::min(static_cast<size_t>(excess), hop_out / 2);
+                    to_push = std::span<const float>(hop_out_.data(), hop_out - drop);
+                    level_avg_ -= static_cast<double>(drop);
+                    counters_.latency_trims.fetch_add(1, std::memory_order_relaxed);
+                    delta = 0;
+                }
+            }
             if (delta != 0) {
                 const size_t n = hop_out + static_cast<size_t>(static_cast<long>(delta));
                 const double step = static_cast<double>(hop_out - 1) / static_cast<double>(n - 1);
@@ -295,6 +311,7 @@ void RealtimeEngine::publish(bool force) {
     snap_.worker_late_events = counters_.worker_late_events.load();
     snap_.inference_errors = counters_.inference_errors.load();
     snap_.drift_corrections = counters_.drift_corrections.load();
+    snap_.latency_trims = counters_.latency_trims.load();
 }
 
 EngineSnapshot RealtimeEngine::snapshot() const {
