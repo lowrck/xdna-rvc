@@ -153,6 +153,17 @@ between backends.
 
 ## License
 
-No license has been chosen for the project code yet (add a LICENSE file before distributing).
-Third-party components:
-[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). Model weights are not distributed.
+Copyright (C) 2026 lowrck.
+
+The project code is licensed under the **GNU General Public License, version 2 only**
+(GPL-2.0-only), the same license as the Linux kernel. See [LICENSE](LICENSE).
+
+Bundled and fetched third-party components keep their own licenses (MIT, BSD-3-Clause, zlib,
+public domain); see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+
+Note for binary distribution: Windows builds load proprietary runtime libraries that are not
+GPL-compatible and are not part of this repository — Microsoft's `DirectML.dll` and AMD's Ryzen AI
+/ VitisAI deployment DLLs. Distributing compiled binaries *together with* those DLLs may conflict
+with GPL-2.0. Source distribution is unaffected.
+
+Model weights are not distributed.
