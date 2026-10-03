@@ -21,6 +21,7 @@ struct TensorInfo {
     std::string name;
     ONNXTensorElementDataType type = ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED;
     std::vector<int64_t> shape;  // -1 for dynamic dimensions
+    std::vector<std::string> dim_names;  // symbolic names of dimensions ("" if none)
     bool is_static() const;
     std::string to_string() const;
 };
@@ -62,6 +63,7 @@ public:
 private:
     ModelSession(Ort::Session session, SessionReport report, bool profiling_active);
     void collect_evidence(const OpenOptions& options, const SessionRequest& request);
+    std::map<std::string, int64_t> free_dims_;
 
     Ort::Session session_;
     SessionReport report_;
@@ -74,6 +76,12 @@ private:
     std::vector<const char*> output_names_;
     Ort::RunOptions run_options_;
 };
+
+// Writes (or reuses from `cache_dir`) a copy of `src` whose symbolic input dimensions are
+// fixed to `dims`, constant-folded with ORT's provider-independent basic optimisations.
+std::filesystem::path materialize_static_model(OrtRuntime& runtime, const std::filesystem::path& src,
+                                              const std::map<std::string, int64_t>& dims,
+                                              const std::filesystem::path& cache_dir);
 
 // Creates a zero-filled tensor of the given type/shape owning its memory, for probes and tests.
 Ort::Value make_zero_tensor(ONNXTensorElementDataType type, const std::vector<int64_t>& shape);

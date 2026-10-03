@@ -1,5 +1,6 @@
 #include "inference/model_session.h"
 
+#include <algorithm>
 #include <chrono>
 #include <numeric>
 #include <stdexcept>
@@ -36,6 +37,10 @@ std::vector<TensorInfo> describe(const Ort::Session& session, bool inputs) {
             auto tinfo = type_info.GetTensorTypeAndShapeInfo();
             t.type = tinfo.GetElementType();
             t.shape = tinfo.GetShape();
+            const size_t rank = tinfo.GetDimensionsCount();
+            std::vector<const char*> names(rank, nullptr);
+            tinfo.GetSymbolicDimensions(names.data(), rank);
+            for (const char* n : names) t.dim_names.emplace_back(n ? n : "");
         }
         out.push_back(std::move(t));
     }
@@ -109,6 +114,31 @@ ModelSession::ModelSession(Ort::Session session, SessionReport report, bool prof
     for (const auto& s : output_name_storage_) output_names_.push_back(s.c_str());
 }
 
+std::filesystem::path materialize_static_model(OrtRuntime& runtime, const std::filesystem::path& src,
+                                              const std::map<std::string, int64_t>& dims,
+                                              const std::filesystem::path& cache_dir) {
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(src, ec);
+    const auto mtime = std::filesystem::last_write_time(src, ec).time_since_epoch().count();
+    std::string key = src.stem().string();
+    for (const auto& [d, v] : dims) key += fmt::format("__{}{}", d, v);
+    key += fmt::format("__{:x}", std::hash<std::string>{}(fmt::format("{}|{}|{}", src.string(), size, mtime)));
+    const auto out = cache_dir / (key + ".onnx");
+    if (std::filesystem::exists(out)) return out;
+    std::filesystem::create_directories(cache_dir);
+    const auto tmp = cache_dir / (key + ".onnx.tmp");
+    Ort::SessionOptions so;
+    so.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);  // standard ONNX ops only
+    for (const auto& [d, v] : dims) so.AddFreeDimensionOverrideByName(d.c_str(), v);
+    so.SetOptimizedModelFilePath(to_ort_path(tmp).c_str());
+    const auto t0 = std::chrono::steady_clock::now();
+    { Ort::Session s(runtime.env(), to_ort_path(src).c_str(), so); }
+    std::filesystem::rename(tmp, out);
+    XR_LOG_INFO("wrote static-shape model {} in {:.0f} ms", out.string(),
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+    return out;
+}
+
 std::unique_ptr<ModelSession> ModelSession::open(OrtRuntime& runtime, const SessionRequest& request,
                                              const OpenOptions& options) {
     if (!std::filesystem::exists(request.model_path)) {
@@ -130,6 +160,7 @@ std::unique_ptr<ModelSession> ModelSession::open(OrtRuntime& runtime, const Sess
     report.requested = options.backend;
 
     std::string first_failure;
+    bool backend_failed = false;  // an available backend failed (as opposed to being unavailable)
     for (size_t attempt = 0; attempt < chain.size(); ++attempt) {
         const BackendKind kind = chain[attempt];
         auto backend = make_backend(kind);
@@ -151,8 +182,12 @@ std::unique_ptr<ModelSession> ModelSession::open(OrtRuntime& runtime, const Sess
         try {
             Ort::SessionOptions so;
             so.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-            if (request.intra_op_threads > 0) so.SetIntraOpNumThreads(request.intra_op_threads);
-            so.SetInterOpNumThreads(1);
+            if (runtime.global_threads() > 0) {
+                so.DisablePerSessionThreads();
+            } else {
+                if (request.intra_op_threads > 0) so.SetIntraOpNumThreads(request.intra_op_threads);
+                so.SetInterOpNumThreads(1);
+            }
             so.SetLogSeverityLevel(static_cast<int>(request.session_log_level));
             so.SetLogId(request.stage.c_str());
             if (request.disallow_cpu_ep_fallback && kind != BackendKind::CPU) {
@@ -165,26 +200,40 @@ std::unique_ptr<ModelSession> ModelSession::open(OrtRuntime& runtime, const Sess
                                                                std::string(to_string(kind)));
                 so.EnableProfiling(to_ort_path(prefix).c_str());
             }
-            backend->configure(so, request);
-            backend->before_create(request, report);
+            for (const auto& [dim, value] : request.free_dims) so.AddFreeDimensionOverrideByName(dim.c_str(), value);
+            SessionRequest effective = request;
+            if (kind == BackendKind::XDNA2 && !request.free_dims.empty()) {
+                effective.model_path = materialize_static_model(runtime, request.model_path, request.free_dims,
+                                                                request.static_model_dir);
+                report.attempts.push_back("static-shape model: " + effective.model_path.string());
+            }
+            backend->configure(so, effective);
+            backend->before_create(effective, report);
 
             const auto t0 = std::chrono::steady_clock::now();
-            Ort::Session session(runtime.env(), to_ort_path(request.model_path).c_str(), so);
+            Ort::Session session(runtime.env(), to_ort_path(effective.model_path).c_str(), so);
             const auto t1 = std::chrono::steady_clock::now();
 
             report.create_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
             report.effective = kind;
             report.attempts.push_back(std::string(display_name(kind)) +
                                       fmt::format(": session created in {:.1f} ms", report.create_ms));
-            if (attempt > 0) {
+            // Automatic mode skipping backends that are not installed is a selection, not a
+            // fallback. Anything else that did not run where it was asked to is a fallback.
+            const bool fallback = attempt > 0 && (options.backend != BackendKind::Auto || backend_failed);
+            if (fallback) {
                 report.fell_back = true;
                 report.fallback_reason = first_failure;
                 XR_LOG_WARN("[{}] FALLBACK: requested {}, running on {}. Reason: {}", request.stage,
                             display_name(options.backend), display_name(kind), first_failure);
+            } else if (attempt > 0) {
+                XR_LOG_INFO("[{}] Automatic backend selection chose {} ({})", request.stage, display_name(kind),
+                            first_failure);
             }
-            backend->after_create(request, report);
+            backend->after_create(effective, report);
 
             std::unique_ptr<ModelSession> s(new ModelSession(std::move(session), std::move(report), profiling));
+            s->free_dims_ = request.free_dims;
             if (request.collect_evidence) s->collect_evidence(options, request);
             XR_LOG_INFO("[{}] {}", request.stage, s->report_.summary());
             return s;
@@ -192,12 +241,14 @@ std::unique_ptr<ModelSession> ModelSession::open(OrtRuntime& runtime, const Sess
             const std::string why = std::string(display_name(kind)) + " session creation failed: " + e.what();
             report.attempts.push_back(why);
             XR_LOG_WARN("[{}] {}", request.stage, why);
-            if (first_failure.empty()) first_failure = why;
+            if (!backend_failed) first_failure = why;  // a real failure explains more than "unavailable"
+            backend_failed = true;
         } catch (const UserError& e) {
             const std::string why = std::string(display_name(kind)) + ": " + e.what();
             report.attempts.push_back(why);
             XR_LOG_WARN("[{}] {}", request.stage, why);
-            if (first_failure.empty()) first_failure = why;
+            if (!backend_failed) first_failure = why;
+            backend_failed = true;
         }
     }
 
@@ -221,7 +272,13 @@ void ModelSession::collect_evidence(const OpenOptions& options, const SessionReq
         std::vector<Ort::Value> probe_inputs;
         for (const auto& in : inputs_) {
             std::vector<int64_t> shape = in.shape;
-            if (!in.is_static()) {
+            for (size_t d = 0; d < shape.size(); ++d) {
+                if (shape[d] >= 0 || d >= in.dim_names.size()) continue;
+                const auto it = free_dims_.find(in.dim_names[d]);
+                if (it != free_dims_.end()) shape[d] = it->second;
+            }
+            const bool resolved = std::all_of(shape.begin(), shape.end(), [](int64_t v) { return v >= 0; });
+            if (!resolved) {
                 const auto it = options.probe_shapes.find(in.name);
                 if (it == options.probe_shapes.end()) {
                     throw std::runtime_error("input '" + in.name + "' has dynamic shape and no probe shape was given");

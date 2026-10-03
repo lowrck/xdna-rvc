@@ -1,5 +1,7 @@
 #include "app/cli_context.h"
 
+#include <algorithm>
+
 namespace xr::cli {
 
 CliContext::CliContext(const GlobalOptions& global) {
@@ -14,7 +16,9 @@ CliContext::CliContext(const GlobalOptions& global) {
     XR_LOG_DEBUG("xdna-rvc-cli 0.1.0");
     XR_LOG_INFO("OS: {}", system_.os);
     XR_LOG_INFO("CPU: {} ({} logical cores)", system_.cpu_brand, system_.logical_cores);
-    runtime_ = std::make_unique<OrtRuntime>();
+    int threads = global.threads;
+    if (threads <= 0) threads = std::clamp(static_cast<int>(system_.logical_cores) / 4, 1, 8);  // ~physical/2
+    runtime_ = std::make_unique<OrtRuntime>(ORT_LOGGING_LEVEL_WARNING, threads);
 }
 
 }  // namespace xr::cli

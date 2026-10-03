@@ -97,6 +97,10 @@ TEST_CASE("automatic mode picks the first available backend and does not mark it
     CHECK(s->report().attempts.size() >= 1);
     if (!rt.has_provider("VitisAIExecutionProvider") && !rt.has_provider("DmlExecutionProvider")) {
         CHECK(s->backend() == BackendKind::CPU);
+        // Unavailable backends were skipped: that is a selection, not a fallback...
+        CHECK_FALSE(s->report().fell_back);
+        // ...but the reason is still recorded for diagnostics.
+        CHECK(s->report().attempts.front().find("unavailable") != std::string::npos);
     }
 }
 

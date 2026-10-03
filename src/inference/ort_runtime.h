@@ -16,7 +16,11 @@ namespace xr {
 // global so that tests can construct their own.
 class OrtRuntime {
 public:
-    explicit OrtRuntime(OrtLoggingLevel level = ORT_LOGGING_LEVEL_WARNING);
+    // `global_threads` > 0 creates one process-wide intra-op thread pool shared by every
+    // session (sessions then call DisablePerSessionThreads()). Pipeline stages run one
+    // after another, so per-session pools would only compete for cores.
+    explicit OrtRuntime(OrtLoggingLevel level = ORT_LOGGING_LEVEL_WARNING, int global_threads = 0);
+    int global_threads() const { return global_threads_; }
 
     Ort::Env& env() { return env_; }
     const std::string& version() const { return version_; }
@@ -27,6 +31,8 @@ public:
     const NpuInfo& npu() const { return npu_; }
 
 private:
+    static Ort::Env make_env(OrtLoggingLevel level, int global_threads);
+    int global_threads_ = 0;
     Ort::Env env_;
     std::string version_;
     std::string build_flavor_;

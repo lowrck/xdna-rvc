@@ -55,3 +55,16 @@ Consequences:
 - **Index retrieval**: the Python importer exports the FAISS IVF index into `.npy` arrays (centroids,
   inverted lists, vectors); C++ implements IVF-Flat search (nprobe configurable, default 1 like RVC).
   This keeps FAISS/BLAS out of the native build. Python tests compare against FAISS.
+
+## Precision policy (user directive, 2026-10-02)
+
+- **BF16 is the XDNA 2 target.** Models are exported FP32; the Ryzen AI VAIML compiler converts them to
+  BF16 when precompiling for STX/KRK.
+- **No INT8 / A16W8 quantization** of the content encoder, RMVPE or synthesizer during initial XDNA 2
+  work. INT8 may be introduced later *per stage*, only after that stage is validated in BF16, and is
+  rejected if it causes meaningful audible degradation.
+- **FP32 CPU is the reference.** Every precision/backend change is regression-tested against it
+  numerically (stage outputs) and on audio (tools/evaluate_conversion.py: pitch tracking, alignment,
+  spectral distance, ASR WER).
+- **Mixed placement is allowed.** A BF16-sensitive stage or partition may run FP16 on DirectML or FP32 on
+  CPU while the remaining stages stay BF16 on XDNA 2 (per-stage backends already exist).

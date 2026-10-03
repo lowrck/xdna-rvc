@@ -6,6 +6,16 @@ add_library(xdna_rvc_core STATIC
     dsp/resampler.cpp
     audio/wav_io.cpp
     rvc/content_encoder.cpp
+    rvc/stream_config.cpp
+    rvc/model_info.cpp
+    rvc/rmvpe.cpp
+    rvc/feature_index.cpp
+    rvc/generator.cpp
+    rvc/stream_processor.cpp
+    rvc/offline.cpp
+    dsp/fft.cpp
+    dsp/sola.cpp
+    util/latency_stats.cpp
     inference/backend_kind.cpp
     inference/npu_detect.cpp
     inference/ort_runtime.cpp
@@ -35,6 +45,9 @@ add_executable(xdna-rvc-cli
     app/cli_context.cpp
     app/cmd_providers.cpp
     app/cmd_features.cpp
+    app/cmd_convert.cpp
+    app/cmd_inspect.cpp
+    app/pipeline_cli.cpp
 )
 target_link_libraries(xdna-rvc-cli PRIVATE xdna_rvc_core CLI11::CLI11)
 xdna_rvc_copy_ort_runtime(xdna-rvc-cli)

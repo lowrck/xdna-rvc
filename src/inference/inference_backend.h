@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -38,6 +40,11 @@ struct SessionRequest {
     // AMD AI Analyzer artifacts (BF16 models only, per Ryzen AI 1.8 docs).
     bool ai_analyzer = false;
     int directml_device_id = 0;
+    // Pins symbolic input dimensions (e.g. {"samples", 12000}) so the session runs with
+    // static shapes. For XDNA 2 a static copy of the model is written to `static_model_dir`
+    // and compiled instead, because the NPU compiler requires static shapes.
+    std::map<std::string, int64_t> free_dims;
+    std::filesystem::path static_model_dir = "cache/static_models";
     OrtLoggingLevel session_log_level = ORT_LOGGING_LEVEL_WARNING;
 };
 
