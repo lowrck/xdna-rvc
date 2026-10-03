@@ -1,0 +1,37 @@
+xdna-rvc linking exception
+==========================
+
+Copyright (C) 2026 lowrck
+
+xdna-rvc is free software; you can redistribute it and/or modify it under the terms
+of the GNU General Public License, version 2 only, as published by the Free Software
+Foundation (see the file LICENSE), with the following additional permission.
+
+In addition, as a special exception, the copyright holders of xdna-rvc give you
+permission to combine xdna-rvc with, and to distribute the combination together with,
+the following runtime components ("the Runtime Components"), in unmodified form as
+published by their respective vendors, regardless of the license terms of those
+components:
+
+  1. Microsoft DirectML (for example DirectML.dll) and the DirectML builds of
+     ONNX Runtime published by Microsoft;
+  2. the AMD Ryzen AI Software runtime, including the ONNX Runtime build, the
+     Vitis AI execution provider and the other deployment libraries shipped by AMD
+     (for example onnxruntime_providers_vitisai.dll, onnxruntime_vitisai_ep.dll,
+     dyn_dispatch_core.dll, aiecompiler_client.dll, vaiml.dll), and the NPU
+     binary files (.xclbin) distributed with it;
+  3. AMD NPU and GPU device drivers.
+
+You may copy and distribute such a combination following the terms of the GNU General
+Public License, version 2, for xdna-rvc and the license terms of the Runtime Components
+for those components. The source code for xdna-rvc must still be made available as
+the GNU General Public License requires; this exception does not require you to
+provide source code for the Runtime Components.
+
+This exception applies only to the Runtime Components listed above. It does not
+permit combining xdna-rvc with any other non-free software, and it does not change
+the license of the Runtime Components.
+
+If you modify xdna-rvc, you may extend this exception to your version, but you are not
+obligated to do so. If you do not wish to do so, delete this exception statement from
+your version.

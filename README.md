@@ -156,14 +156,15 @@ between backends.
 Copyright (C) 2026 lowrck.
 
 The project code is licensed under the **GNU General Public License, version 2 only**
-(GPL-2.0-only), the same license as the Linux kernel. See [LICENSE](LICENSE).
+(GPL-2.0-only), the same license as the Linux kernel ([LICENSE](LICENSE)), **with a linking
+exception** ([LICENSE-EXCEPTION](LICENSE-EXCEPTION)).
+
+The exception exists because Windows builds load proprietary runtime libraries: Microsoft's
+DirectML and AMD's Ryzen AI / VitisAI deployment libraries and NPU binaries. It allows
+distributing xdna-rvc together with those specific, unmodified components. Everything else is
+plain GPL-2.0-only.
 
 Bundled and fetched third-party components keep their own licenses (MIT, BSD-3-Clause, zlib,
 public domain); see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
-
-Note for binary distribution: Windows builds load proprietary runtime libraries that are not
-GPL-compatible and are not part of this repository — Microsoft's `DirectML.dll` and AMD's Ryzen AI
-/ VitisAI deployment DLLs. Distributing compiled binaries *together with* those DLLs may conflict
-with GPL-2.0. Source distribution is unaffected.
 
 Model weights are not distributed.
