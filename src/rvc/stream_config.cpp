@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 namespace xr::rvc {
 

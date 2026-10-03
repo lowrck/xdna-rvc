@@ -31,6 +31,7 @@ int main(int argc, char** argv) {
     xr::cli::register_features(app, global, exit_code);
     xr::cli::register_convert(app, global, exit_code);
     xr::cli::register_inspect(app, global, exit_code);
+    xr::cli::register_realtime(app, global, exit_code);
 
     // `xdna-rvc-cli --input in.wav --model model.json --output out.wav` is shorthand for `convert`.
     std::vector<std::string> args(argv + 1, argv + argc);

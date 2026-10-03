@@ -14,6 +14,7 @@
 #include "rvc/content_encoder.h"
 #include "rvc/feature_index.h"
 #include "rvc/generator.h"
+#include "rvc/hop_processor.h"
 #include "rvc/model_info.h"
 #include "rvc/rmvpe.h"
 #include "rvc/stream_config.h"
@@ -63,24 +64,24 @@ struct HopTimings {
 // The same object is used for realtime audio (from the inference worker thread),
 // offline WAV conversion and benchmarking, so all three exercise identical code.
 // process() is allocation-free after construction.
-class StreamProcessor {
+class StreamProcessor final : public HopProcessor {
 public:
     StreamProcessor(OrtRuntime& runtime, const ModelInfo& model, const ProcessorOptions& options);
 
     const ModelInfo& model() const { return model_; }
     const StreamGeometry& geometry() const { return geom_; }
     const ProcessorOptions& options() const { return opts_; }
-    int hop_input_samples() const { return hop_in_; }
-    int hop_output_samples() const { return hop_out_; }
-    double hop_seconds() const { return geom_.block * 0.01; }
+    int hop_input_samples() const override { return hop_in_; }
+    int hop_output_samples() const override { return hop_out_; }
+    double hop_seconds() const override { return geom_.block * 0.01; }
 
     // Delay from input to output introduced by the algorithm (right context, SOLA
     // centering, resampler filters). Excludes processing time and device buffers.
-    double algorithmic_latency_seconds() const;
+    double algorithmic_latency_seconds() const override;
 
     void process(std::span<const float> in, std::span<float> out, const VoiceParamsSnapshot& params,
-                 HopTimings* timings = nullptr);
-    void reset();
+                 HopTimings* timings = nullptr) override;
+    void reset() override;
 
     // Execution provenance of each neural stage.
     std::vector<const SessionReport*> stage_reports() const;

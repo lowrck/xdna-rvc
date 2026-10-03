@@ -2,7 +2,7 @@
 
 #include <cstdio>
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <nlohmann/json.hpp>
 
 #include "app/cli_context.h"

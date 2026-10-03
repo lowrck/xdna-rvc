@@ -5,8 +5,8 @@
 #include <numeric>
 #include <stdexcept>
 
-#include <fmt/format.h>
-#include <fmt/ranges.h>
+#include <spdlog/fmt/fmt.h>
+#include <spdlog/fmt/ranges.h>
 
 #include "inference/ort_runtime.h"
 #include "util/error.h"

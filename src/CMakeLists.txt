@@ -5,6 +5,10 @@ add_library(xdna_rvc_core STATIC
     util/npy.cpp
     dsp/resampler.cpp
     audio/wav_io.cpp
+    audio/miniaudio_backend.cpp
+    audio/realtime_engine.cpp
+    audio/simulated_stream.cpp
+    util/thread_priority.cpp
     rvc/content_encoder.cpp
     rvc/stream_config.cpp
     rvc/model_info.cpp
@@ -47,6 +51,7 @@ add_executable(xdna-rvc-cli
     app/cmd_features.cpp
     app/cmd_convert.cpp
     app/cmd_inspect.cpp
+    app/cmd_realtime.cpp
     app/pipeline_cli.cpp
 )
 target_link_libraries(xdna-rvc-cli PRIVATE xdna_rvc_core CLI11::CLI11)

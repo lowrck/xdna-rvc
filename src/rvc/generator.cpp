@@ -1,6 +1,6 @@
 #include "rvc/generator.h"
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include "util/error.h"
 

@@ -2,7 +2,7 @@
 
 #include <fstream>
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <nlohmann/json.hpp>
 
 #include "util/error.h"

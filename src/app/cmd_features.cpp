@@ -4,7 +4,7 @@
 #include <chrono>
 #include <cstdio>
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include "app/cli_context.h"
 #include "audio/wav_io.h"

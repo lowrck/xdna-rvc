@@ -21,5 +21,6 @@ void register_providers(CLI::App& app, GlobalOptions& global, int& exit_code);
 void register_features(CLI::App& app, GlobalOptions& global, int& exit_code);
 void register_convert(CLI::App& app, GlobalOptions& global, int& exit_code);
 void register_inspect(CLI::App& app, GlobalOptions& global, int& exit_code);
+void register_realtime(CLI::App& app, GlobalOptions& global, int& exit_code);
 
 }  // namespace xr::cli

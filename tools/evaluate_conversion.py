@@ -5,7 +5,8 @@ Measures, without listening:
   * pitch tracking  - RMVPE F0 of output vs input; median shift (semitones) and the share
                       of voiced frames within 0.5 semitone of the requested shift
   * voicing         - fraction of frames voiced in input/output
-  * alignment       - lag (10 ms frames) maximising envelope cross-correlation
+  * alignment       - lag (10 ms frames) maximising envelope cross-correlation; positive =
+                      output late (e.g. a realtime recording includes the processing latency)
   * loudness        - RMS of input/output, clipping, NaN/Inf
   * discontinuities - largest sample-to-sample jump relative to the signal (click detector)
   * intelligibility - optional (--asr): word error rate of wav2vec2-base-960h transcriptions
@@ -35,12 +36,19 @@ def envelope(a: np.ndarray, sr: int) -> np.ndarray:
     return np.sqrt((a[: n * 160].reshape(n, 160) ** 2).mean(axis=1))
 
 
-def best_lag(x: np.ndarray, y: np.ndarray, max_lag: int = 30) -> int:
+def best_lag(x: np.ndarray, y: np.ndarray, max_lag: int = 60) -> int:
+    """Frames by which y lags x (positive = y late)."""
     m = min(len(x), len(y))
     x, y = x[:m] - x[:m].mean(), y[:m] - y[:m].mean()
     lags = list(range(-max_lag, max_lag + 1))
-    cc = [np.dot(x[max(0, l):m + min(0, l)], y[max(0, -l):m - max(0, l)]) for l in lags]
+    # pairs x[i] with y[i + l]
+    cc = [np.dot(x[max(0, -l):m - max(0, l)], y[max(0, l):m + min(0, l)]) for l in lags]
     return lags[int(np.argmax(cc))]
+
+
+def shift(a: np.ndarray, lag: int) -> np.ndarray:
+    """Removes `lag` frames of delay (positive lag: drop leading frames)."""
+    return a[lag:] if lag >= 0 else np.concatenate([np.zeros(-lag, a.dtype), a])
 
 
 def wer(ref: str, hyp: str) -> float:
@@ -72,7 +80,7 @@ def evaluate(inp: Path, out: Path, pitch: float, rmvpe_path: Path | None, refere
         import convert_rmvpe
         _, rm = convert_rmvpe.load_upstream(rmvpe_path, False)
         fx = rm.infer_from_audio(resample(x, sx, 16000), 0.03)
-        fy = rm.infer_from_audio(resample(y, sy, 16000), 0.03)
+        fy = shift(rm.infer_from_audio(resample(y, sy, 16000), 0.03), res["alignment_lag_frames"])
         n = min(len(fx), len(fy))
         fx, fy = fx[:n], fy[:n]
         both = (fx > 0) & (fy > 0)

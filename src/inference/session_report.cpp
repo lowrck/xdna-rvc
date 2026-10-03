@@ -7,7 +7,7 @@
 #include <sstream>
 #include <stdexcept>
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 #include <nlohmann/json.hpp>
 
 namespace xr {

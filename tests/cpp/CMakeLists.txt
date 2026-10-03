@@ -6,6 +6,7 @@ add_executable(xdna_rvc_tests
     test_resampler.cpp
     test_dsp.cpp
     test_rvc_components.cpp
+    test_realtime.cpp
 )
 target_link_libraries(xdna_rvc_tests PRIVATE xdna_rvc_core xdna_rvc_doctest)
 target_compile_definitions(xdna_rvc_tests PRIVATE

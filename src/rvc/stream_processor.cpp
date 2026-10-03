@@ -6,7 +6,7 @@
 #include <cstring>
 #include <functional>
 
-#include <fmt/format.h>
+#include <spdlog/fmt/fmt.h>
 
 #include "inference/ort_runtime.h"
 #include "util/error.h"
