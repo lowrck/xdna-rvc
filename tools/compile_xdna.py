@@ -151,6 +151,8 @@ def main() -> int:
     p.add_argument("--stream", action="append", default=[])
     p.add_argument("--stages", default="content_encoder,rmvpe,generator")
     p.add_argument("--prepare-only", action="store_true", help="write static models + manifest without compiling")
+    p.add_argument("--rewrite", default="", help="apply tools/optimize_xdna.py rewrites before compiling "
+                   "(comma list of leakyrelu,relu,softmax,layernorm or 'all'); verified numerically")
     p.add_argument("-v", "--verbose", action="store_true")
     a = p.parse_args()
     _bootstrap.setup_logging(a.verbose)
@@ -197,13 +199,27 @@ def main() -> int:
             if any(e["stage"] == stage and e["dims"] == dims and e["source"] == rel(src) for e in entries):
                 continue
             static = make_static(src, dims, out_dir / "static")
+            rewrite_info = None
+            if a.rewrite:
+                import optimize_xdna
+                kinds = set(optimize_xdna.ALL) if a.rewrite == "all" else set(a.rewrite.split(","))
+                (out_dir / "static").mkdir(parents=True, exist_ok=True)
+                rw = out_dir / "static" / (static.stem + "__rw.onnx")
+                rewrite_info = optimize_xdna.optimize(static, rw, kinds, {})
+                if not rewrite_info["passed"]:
+                    log.error("[%s] rewrite failed numerical check (rel %.2e); compiling the unmodified graph",
+                              stage, rewrite_info["worst_rel_rms"])
+                    rw.unlink(missing_ok=True)
+                else:
+                    static = rw
             key = f"{static.stem}_{sha256_prefix(static)}"
             cache_dir = out_dir / "cache"
             log.info("[%s] %s -> %s (cache key %s)", stage, src.name, static.name, key)
             info = compile_one(stage, static, cache_dir, key, config_file, a.prepare_only)
             entries.append({"stage": stage, "dims": dims, "source": rel(src), "static_model": rel(static),
                             "cache_dir": rel(cache_dir), "cache_key": key, "config_file": rel(config_file),
-                            "precision": "bf16", "onnxruntime_version": ort.__version__, **info})
+                            "precision": "bf16", "onnxruntime_version": ort.__version__,
+                            "rewrites": rewrite_info, **info})
 
     model["xdna"] = {"entries": entries, "generated_by": "tools/compile_xdna.py"}
     a.model_json.write_text(json.dumps(model, indent=2))

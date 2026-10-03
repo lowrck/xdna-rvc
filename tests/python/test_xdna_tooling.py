@@ -66,3 +66,25 @@ def test_compile_and_bf16_accuracy_on_npu(root):
     for e in entries:
         assert e["compiled"]
         assert e["assignment"].get("NPU", 0) > 0, f"{e['stage']}: no nodes on the NPU: {e['assignment']}"
+
+
+def test_rewrites_are_exact_and_remove_unsupported_ops(tmp_path):
+    """Random-weight generator export: all four rewrite kinds apply and match FP32."""
+    import torch
+    import optimize_xdna
+    from xdna_rvc_tools.onnx_export import export_onnx, ort_optimize_basic
+    from xdna_rvc_tools.rvc.checkpoint import inspect_checkpoint
+    from xdna_rvc_tools.rvc.export_model import GeneratorExport, StreamGeometry, example_inputs
+    from test_rvc_conversion import random_checkpoint
+
+    info, sd = inspect_checkpoint(random_checkpoint(tmp_path, "v2", True, 40000))
+    model = GeneratorExport(info, sd, StreamGeometry(40, 10, 10)).eval()
+    x = example_inputs(model, seed=0)
+    raw, src, dst = tmp_path / "r.onnx", tmp_path / "g.onnx", tmp_path / "g_rw.onnx"
+    export_onnx(model, tuple(x.values()), raw, list(x.keys()), ["audio"])
+    ort_optimize_basic(raw, src)
+    r = optimize_xdna.optimize(src, dst, set(optimize_xdna.ALL), {})
+    assert r["passed"], r
+    assert r["rewrites"]["leakyrelu"] > 0 and r["rewrites"]["layernorm"] > 0 and r["rewrites"]["softmax"] > 0
+    assert r["unsupported_after"] == {}
+    assert r["boundaries_after"] == 0
