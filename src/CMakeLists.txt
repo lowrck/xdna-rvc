@@ -2,6 +2,10 @@
 add_library(xdna_rvc_core STATIC
     util/log.cpp
     util/system_info.cpp
+    util/npy.cpp
+    dsp/resampler.cpp
+    audio/wav_io.cpp
+    rvc/content_encoder.cpp
     inference/backend_kind.cpp
     inference/npu_detect.cpp
     inference/ort_runtime.cpp
@@ -30,6 +34,7 @@ add_executable(xdna-rvc-cli
     app/cli_main.cpp
     app/cli_context.cpp
     app/cmd_providers.cpp
+    app/cmd_features.cpp
 )
 target_link_libraries(xdna-rvc-cli PRIVATE xdna_rvc_core CLI11::CLI11)
 xdna_rvc_copy_ort_runtime(xdna-rvc-cli)

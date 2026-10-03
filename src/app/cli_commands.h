@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include <CLI/CLI.hpp>
 
 namespace xr::cli {
@@ -15,5 +17,6 @@ struct GlobalOptions {
 // Each register_* function adds a subcommand to `app`. The callback runs the command
 // and sets `exit_code`.
 void register_providers(CLI::App& app, GlobalOptions& global, int& exit_code);
+void register_features(CLI::App& app, GlobalOptions& global, int& exit_code);
 
 }  // namespace xr::cli

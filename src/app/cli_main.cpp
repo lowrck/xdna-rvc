@@ -23,6 +23,7 @@ int main(int argc, char** argv) {
 
     int exit_code = 0;
     xr::cli::register_providers(app, global, exit_code);
+    xr::cli::register_features(app, global, exit_code);
 
     try {
         app.parse(argc, argv);

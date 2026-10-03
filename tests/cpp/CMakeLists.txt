@@ -3,6 +3,7 @@ add_executable(xdna_rvc_tests
     test_backend_discovery.cpp
     test_session_report.cpp
     test_model_session.cpp
+    test_resampler.cpp
 )
 target_link_libraries(xdna_rvc_tests PRIVATE xdna_rvc_core xdna_rvc_doctest)
 target_compile_definitions(xdna_rvc_tests PRIVATE
