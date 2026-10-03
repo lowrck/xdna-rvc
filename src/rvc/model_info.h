@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <map>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -29,6 +30,22 @@ struct IndexInfo {
     int nprobe = 1;
 };
 
+// One precompiled XDNA 2 model (written by tools/compile_xdna.py).
+struct XdnaEntry {
+    std::string stage;                      // content_encoder | rmvpe | generator
+    std::map<std::string, int64_t> dims;    // pinned symbolic dims, e.g. {"samples": 12000}
+    std::filesystem::path source;           // FP32 model it was made from (absolute)
+    std::filesystem::path static_model;     // static-shape FP32 model given to the EP
+    std::filesystem::path cache_dir;
+    std::string cache_key;
+    std::filesystem::path config_file;      // vaiml (BF16) compile configuration
+    std::string precision = "bf16";
+    std::string onnxruntime_version;        // ORT used to compile (cache is version-specific)
+    bool compiled = false;
+    std::optional<bool> accuracy_passed;    // BF16 vs FP32 check; nullopt if not measured
+    double max_rel_rms = 0.0;
+};
+
 // Parsed model.json (written by tools/convert_rvc.py). All paths resolved to absolute.
 struct ModelInfo {
     std::filesystem::path model_json;
@@ -51,6 +68,10 @@ struct ModelInfo {
     std::vector<GeneratorVariant> generators;
     std::optional<IndexInfo> index;
     std::vector<std::string> warnings;
+    std::vector<XdnaEntry> xdna;
+
+    const XdnaEntry* find_xdna(const std::string& stage, const std::filesystem::path& source,
+                               const std::map<std::string, int64_t>& dims) const;
 
     // Finds the generator exported for exactly this geometry, or nullptr.
     const GeneratorVariant* find_generator(const StreamGeometry& g) const;

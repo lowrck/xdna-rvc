@@ -128,7 +128,11 @@ std::filesystem::path materialize_static_model(OrtRuntime& runtime, const std::f
     std::filesystem::create_directories(cache_dir);
     const auto tmp = cache_dir / (key + ".onnx.tmp");
     Ort::SessionOptions so;
-    so.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_BASIC);  // standard ONNX ops only
+    // No re-optimisation: only pin the dimensions. Constant-folding the pinned graph here
+    // produces files that ONNX Runtime 1.30 then fails to load at ORT_ENABLE_ALL
+    // ("AddInitializedOrtValue: Attempt to replace the existing tensor"); the VitisAI
+    // compiler folds shapes itself.
+    so.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
     for (const auto& [d, v] : dims) so.AddFreeDimensionOverrideByName(d.c_str(), v);
     so.SetOptimizedModelFilePath(to_ort_path(tmp).c_str());
     const auto t0 = std::chrono::steady_clock::now();
@@ -170,7 +174,14 @@ std::unique_ptr<ModelSession> ModelSession::open(OrtRuntime& runtime, const Sess
             if (first_failure.empty()) first_failure = why;
             continue;
         }
-        const auto avail = backend->availability(runtime);
+        auto avail = backend->availability(runtime);
+        if (kind == BackendKind::XDNA2 && avail.available && !request.xdna_auto_veto.empty()) {
+            if (options.backend == BackendKind::Auto) {
+                avail = {false, "skipped by Automatic mode: " + request.xdna_auto_veto};
+            } else {
+                XR_LOG_WARN("[{}] XDNA 2 explicitly requested although {}", request.stage, request.xdna_auto_veto);
+            }
+        }
         if (!avail.available) {
             const std::string why = std::string(display_name(kind)) + " unavailable: " + avail.reason;
             report.attempts.push_back(why);
@@ -202,7 +213,10 @@ std::unique_ptr<ModelSession> ModelSession::open(OrtRuntime& runtime, const Sess
             }
             for (const auto& [dim, value] : request.free_dims) so.AddFreeDimensionOverrideByName(dim.c_str(), value);
             SessionRequest effective = request;
-            if (kind == BackendKind::XDNA2 && !request.free_dims.empty()) {
+            if (kind == BackendKind::XDNA2 && !request.xdna_model_path.empty()) {
+                effective.model_path = request.xdna_model_path;
+                report.attempts.push_back("precompiled XDNA model: " + effective.model_path.string());
+            } else if (kind == BackendKind::XDNA2 && !request.free_dims.empty()) {
                 effective.model_path = materialize_static_model(runtime, request.model_path, request.free_dims,
                                                                 request.static_model_dir);
                 report.attempts.push_back("static-shape model: " + effective.model_path.string());
@@ -255,7 +269,9 @@ std::unique_ptr<ModelSession> ModelSession::open(OrtRuntime& runtime, const Sess
     std::string hint;
     if (options.backend == BackendKind::XDNA2) {
         hint = "Retry with --backend cpu (or enable CPU fallback), run `xdna-rvc-cli providers` to check the NPU "
-               "runtime, or run tools/inspect_execution.py on the model to find unsupported operators.";
+               "runtime, precompile with tools/compile_xdna.py (the deployment VitisAI EP cannot compile BF16 "
+               "models at runtime), or run `tools/inspect_execution.py ops` on the model to find unsupported "
+               "operators.";
     } else if (options.backend != BackendKind::CPU) {
         hint = "Retry with --backend cpu or enable CPU fallback.";
     }

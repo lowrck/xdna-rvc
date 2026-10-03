@@ -1,0 +1,15 @@
+# Model conversion / validation tooling (Python 3.11+).
+# torch is installed separately for your platform (CPU wheels suffice).
+torch>=2.4
+numpy
+scipy
+onnx>=1.16
+onnxruntime>=1.20      # inside the Ryzen AI conda env, keep AMD's onnxruntime build instead
+onnxscript
+soundfile
+safetensors
+faiss-cpu              # reading RVC .index files during import
+librosa                # mel filterbank used by RMVPE (upstream RVC)
+transformers           # optional: HuBERT reference check, ASR in evaluate_conversion.py
+scikit-learn           # optional: build_index.py on very large feature sets
+pytest

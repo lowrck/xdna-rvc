@@ -45,6 +45,12 @@ struct SessionRequest {
     // and compiled instead, because the NPU compiler requires static shapes.
     std::map<std::string, int64_t> free_dims;
     std::filesystem::path static_model_dir = "cache/static_models";
+    // Precompiled XDNA 2 model (from tools/compile_xdna.py). When set, XDNA 2 sessions load
+    // this static-shape model with cache_dir/cache_key instead of materialising one.
+    std::filesystem::path xdna_model_path;
+    // Non-empty: Automatic mode must not place this stage on XDNA 2 (e.g. BF16 accuracy
+    // check failed). An explicit XDNA 2 request is still honoured, with a warning.
+    std::string xdna_auto_veto;
     OrtLoggingLevel session_log_level = ORT_LOGGING_LEVEL_WARNING;
 };
 

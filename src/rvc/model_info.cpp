@@ -36,6 +36,15 @@ const GeneratorVariant* ModelInfo::find_generator(const StreamGeometry& g) const
     return nullptr;
 }
 
+const XdnaEntry* ModelInfo::find_xdna(const std::string& stage, const std::filesystem::path& source,
+                                      const std::map<std::string, int64_t>& dims) const {
+    std::error_code ec;
+    for (const auto& e : xdna) {
+        if (e.stage == stage && e.dims == dims && std::filesystem::equivalent(e.source, source, ec)) return &e;
+    }
+    return nullptr;
+}
+
 std::string ModelInfo::describe() const {
     std::string s = fmt::format("{}: RVC {} ({}-dim), {}, {} Hz, {} speaker(s), {} generator variant(s), index: {}",
                                 name, rvc_version, feature_dim, uses_f0 ? "F0" : "no F0", sample_rate, n_speakers,
@@ -139,6 +148,27 @@ ModelInfo load_model_info(const std::filesystem::path& model_json) {
                                         m.feature_dim));
         }
         m.index = ii;
+    }
+    if (const auto x = j.find("xdna"); x != j.end() && x->is_object()) {
+        for (const auto& e : x->value("entries", json::array())) {
+            XdnaEntry xe;
+            xe.stage = e.value("stage", "");
+            const json dims = e.value("dims", json::object());
+            for (const auto& [k, v] : dims.items()) xe.dims[k] = v.get<int64_t>();
+            xe.source = std::filesystem::weakly_canonical(m.dir / e.value("source", ""));
+            xe.static_model = m.dir / e.value("static_model", "");
+            xe.cache_dir = m.dir / e.value("cache_dir", "");
+            xe.cache_key = e.value("cache_key", "");
+            xe.config_file = m.dir / e.value("config_file", "");
+            xe.precision = e.value("precision", "bf16");
+            xe.onnxruntime_version = e.value("onnxruntime_version", "");
+            xe.compiled = e.value("compiled", false);
+            if (const auto acc = e.find("bf16_vs_fp32"); acc != e.end() && acc->is_object()) {
+                xe.accuracy_passed = acc->value("passed", false);
+                xe.max_rel_rms = acc->value("max_rel_rms", 0.0);
+            }
+            m.xdna.push_back(std::move(xe));
+        }
     }
     if (const auto w = j.find("warnings"); w != j.end() && w->is_array()) {
         for (const auto& s : *w) m.warnings.push_back(s.get<std::string>());

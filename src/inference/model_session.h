@@ -78,7 +78,7 @@ private:
 };
 
 // Writes (or reuses from `cache_dir`) a copy of `src` whose symbolic input dimensions are
-// fixed to `dims`, constant-folded with ORT's provider-independent basic optimisations.
+// fixed to `dims` (graph otherwise unchanged).
 std::filesystem::path materialize_static_model(OrtRuntime& runtime, const std::filesystem::path& src,
                                               const std::map<std::string, int64_t>& dims,
                                               const std::filesystem::path& cache_dir);

@@ -8,6 +8,7 @@
 
 #include <fmt/format.h>
 
+#include "inference/ort_runtime.h"
 #include "util/error.h"
 #include "util/log.h"
 
@@ -96,6 +97,29 @@ StreamProcessor::StreamProcessor(OrtRuntime& runtime, const ModelInfo& model, co
         r.static_model_dir = b.cache_dir / "static_models";
         return r;
     };
+    // Attach the precompiled XDNA 2 model for this stage/shape, if compile_xdna.py made one.
+    auto attach_xdna = [&](SessionRequest& r, const std::filesystem::path& source) {
+        const XdnaEntry* e = model_.find_xdna(r.stage, source, r.free_dims);
+        if (!e) return;
+        r.xdna_model_path = e->static_model;
+        r.cache_dir = e->cache_dir;
+        r.cache_key = e->cache_key;
+        r.xdna_config_file = e->config_file;
+        if (!e->compiled) {
+            XR_LOG_WARN("[{}] XDNA model {} was prepared but not compiled; run tools/compile_xdna.py on the NPU "
+                        "machine (BF16 cannot be compiled by the deployment runtime)", r.stage,
+                        e->static_model.filename().string());
+        }
+        if (e->accuracy_passed && !*e->accuracy_passed) {
+            r.xdna_auto_veto = fmt::format("its BF16 output differs from FP32 (rel. RMS {:.3f}) beyond tolerance",
+                                           e->max_rel_rms);
+        }
+        if (!e->onnxruntime_version.empty() && e->onnxruntime_version != runtime_.version()) {
+            XR_LOG_WARN("[{}] XDNA cache was compiled with ONNX Runtime {} but {} is loaded; AMD advises against "
+                        "reusing caches across EP versions - recompile with tools/compile_xdna.py",
+                        r.stage, e->onnxruntime_version, runtime_.version());
+        }
+    };
     auto open_opts = [&](BackendKind k) {
         OpenOptions o;
         o.backend = k;
@@ -107,6 +131,7 @@ StreamProcessor::StreamProcessor(OrtRuntime& runtime, const ModelInfo& model, co
         auto r = base_request("content_encoder", model_.content_encoder);
         r.free_dims["samples"] = window16k_;
         r.cache_key = cache_key_for(model_.content_encoder, std::to_string(window16k_));
+        attach_xdna(r, model_.content_encoder);
         content_ = std::make_unique<ContentEncoder>(runtime_, r, open_opts(b.content));
         if (content_->feature_dim() != model_.feature_dim) {
             throw UserError(fmt::format("content encoder {} produces {}-dim features but voice '{}' (RVC {}) needs {}",
@@ -126,6 +151,7 @@ StreamProcessor::StreamProcessor(OrtRuntime& runtime, const ModelInfo& model, co
         const int frames = RmvpePitch::frames_for_samples(pitch_segment_);
         r.free_dims["frames"] = frames;
         r.cache_key = cache_key_for(model_.rmvpe, std::to_string(frames));
+        attach_xdna(r, model_.rmvpe);
         rmvpe_ = std::make_unique<RmvpePitch>(runtime_, r, open_opts(b.pitch), model_.rmvpe_mel_basis);
         rmvpe_->prepare_fixed(pitch_segment_);
         if (rmvpe_->fixed_frames() - 4 < geom_.block) {
@@ -135,6 +161,7 @@ StreamProcessor::StreamProcessor(OrtRuntime& runtime, const ModelInfo& model, co
     {
         auto r = base_request("generator", variant->path);
         r.cache_key = cache_key_for(variant->path, geom_.tag());
+        attach_xdna(r, variant->path);
         generator_ = std::make_unique<Generator>(runtime_, r, open_opts(b.generator), model_, *variant);
         if (generator_->frames() != geom_.frames ||
             generator_->output_samples() != geom_.return_length * model_.upsample_factor) {
